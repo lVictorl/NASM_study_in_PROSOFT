@@ -10,8 +10,8 @@ _start:
     ; Открываем файл                syscall   ( rdi, rsi, rdx, r10, r8, r9)
     mov rax, 2             ; __x64_sys_open  (const char *filename, int flags, umode_t mode)
     mov rdi, filename
-    mov rsi, 0x441         ; O_CREAT|O_WRONLY|O_TRUNC
-    mov rdx, 0o644         ; Права доступа
+    mov rsi, 0x666         ; O_CREAT|O_WRONLY|O_TRUNC  ()
+    mov rdx, 0o666         ; Права доступа             (rw-rw-rw-)
     syscall
 
     ; Сохраняем дескриптор
