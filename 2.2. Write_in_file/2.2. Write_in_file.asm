@@ -1,11 +1,37 @@
 global _start
 
 section .data
+    ; Сохраняемое в файл сообщение
     message db  "Hello, world", 12
     length  equ $ - message
     filename db "output.txt", 0
+    
+    ; Сообщения об ошибках
+    error_open_msg db "Error: Failed to open file", 0xA, 0
+    error_write_msg db "Error: Failed to write to file", 0xA, 0
+    error_close_msg db "Error: Failed to close file", 0xA, 0
+    
+    ; Длины сообщений
+    error_open_len equ $ - error_open_msg
+    error_write_len equ $ - error_write_msg
+    error_close_len equ $ - error_close_msg
+
 
 section .text
+    ; Функция вывода строки в stderr
+    ; rsi - указатель на строку, rdx - длина строки
+    print_error:
+        mov rax, 1              ; sys_write
+        mov rdi, 2              ; stderr
+        syscall
+        ret
+    
+    ; Функция выхода с кодом ошибки
+    ; rdi - код ошибки
+    exit_with_error:
+        mov rax, 60             ; sys_exit
+        syscall
+
 _start:
     ; Открываем файл                syscall   ( rdi, rsi, rdx, r10, r8, r9)
     mov rax, 2             ; __x64_sys_open  (const char *filename, int flags, umode_t mode)
@@ -13,6 +39,10 @@ _start:
     mov rsi, 0x666         ; O_CREAT|O_WRONLY|O_TRUNC  ()
     mov rdx, 0o666         ; Права доступа             (rw-rw-rw-)
     syscall
+
+    ; Проверка ошибки открытия
+    cmp rax, 0
+    jl error_open           ; Если rax < 0 - ошибка открытия
 
     ; Сохраняем дескриптор
     push rax
@@ -24,11 +54,54 @@ _start:
     mov rdx, length
     syscall
 
+    ; Проверка ошибки записи
+    cmp rax, 0
+    jl error_write          ; Если rax < 0 - ошибка записи
+
     ; Закрываем файл
     mov rax, 3             ; sys_close
     pop rdi                ; Восстанавливаем дескриптор
     syscall
 
-    mov rax, 60            ; sys_exit
-    xor rdi, rdi
+    
+    ; Проверка ошибки закрытия
+    cmp rax, 0
+    jl error_close          ; Если rax < 0 - ошибка закрытия
+
+    ; Успешное завершение
+    mov rax, 60             ; sys_exit
+    xor rdi, rdi            ; код 0
     syscall
+
+
+; Обработчики ошибок
+
+; Обработчик ошибки открытия файла
+error_open:
+    mov rsi, error_open_msg
+    mov rdx, error_open_len
+    call print_error
+    mov rdi, 1              ; код ошибки для открытия
+    jmp exit_with_error
+
+; Обработчик ошибки записи в файл
+error_write:
+    ; Нужно закрыть файл перед выходом, т.к. он уже открыт
+    mov rbx, rax            ; сохраняем код ошибки записи
+    mov rax, 3              ; sys_close
+    pop rdi                 ; получаем дескриптор из стека
+    syscall
+    
+    mov rsi, error_write_msg
+    mov rdx, error_write_len
+    call print_error
+    mov rdi, 2              ; код ошибки для записи
+    jmp exit_with_error
+
+; Обработчик ошибки закрытия файла
+error_close:
+    mov rsi, error_close_msg
+    mov rdx, error_close_len
+    call print_error
+    mov rdi, 3              ; код ошибки для закрытия
+    jmp exit_with_error
