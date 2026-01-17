@@ -1,0 +1,13 @@
+execve("./Calculator", ["./Calculator"], 0x7ffdcaf157e0 /* 61 vars */) = 0
+write(1, "Enter 1 number: ", 16)        = 16
+read(0, 1235
+"1235\n", 32)                   = 5
+write(1, "Enter 2 number: ", 16)        = 16
+read(0, 5431
+"5431\n", 32)                   = 5
+write(1, "Answer: ", 8)                 = 8
+write(1, "6666", 4)                     = 4
+write(1, "\n", 1)                       = 1
+exit(0)                                 = ?
++++ exited with 0 +++
+
