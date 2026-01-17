@@ -10,12 +10,13 @@ section .data
     error_open_msg db "Error: Failed to open file", 0xA, 0
     error_write_msg db "Error: Failed to write to file", 0xA, 0
     error_close_msg db "Error: Failed to close file", 0xA, 0
-    
+    error_partial_write_msg db "Error: Partial write to file", 0xA, 0
+
     ; Длины сообщений
     error_open_len equ $ - error_open_msg
     error_write_len equ $ - error_write_msg
     error_close_len equ $ - error_close_msg
-
+    error_partial_write_len equ $ - error_partial_write_msg 
 
 section .text
     ; Функция вывода строки в stderr
@@ -31,6 +32,16 @@ section .text
     exit_with_error:
         mov rax, 60             ; sys_exit
         syscall
+    
+    ; Проверка целостности записи по количеству байт
+    ; После прерывания 1 (запись) в rax устанавливается,
+    ; Либо количество записанныйх байт (>0),
+    ; Либо код ошибки (<0)
+    check_write_count:
+        ; Так как rdx не изменялся после записи в него длины сообщения, 
+        ; его не трогам
+        cmp rax, rdx            ; Сравниваем фактическое и ожидаемое количество
+        ret                     ; Возвращаемся с установленными флагами
 
 _start:
     ; Открываем файл                syscall   ( rdi, rsi, rdx, r10, r8, r9)
@@ -57,6 +68,11 @@ _start:
     ; Проверка ошибки записи
     cmp rax, 0
     jl error_write          ; Если rax < 0 - ошибка записи
+
+    ; Проверка количества записанных байт с помощью подпрограммы
+    call check_write_count   ; Вызываем подпрограмму для сравнения rax и rdx
+    jnz error_partial_write  ; Если флаг zero не поднят, значит они не равны
+    ; и сообщение записано не полность -> Ошибка
 
     ; Закрываем файл
     mov rax, 3             ; sys_close
@@ -96,6 +112,20 @@ error_write:
     mov rdx, error_write_len
     call print_error
     mov rdi, 2              ; код ошибки для записи
+    jmp exit_with_error
+
+; Обработчик ошибки частичной записи в файл
+error_partial_write:
+    ; Закрываем файл перед выходом, т.к. он уже открыт
+    mov rbx, rax            ; сохраняем количество фактически записанных байт
+    mov rax, 3              ; sys_close
+    pop rdi                 ; получаем дескриптор из стека
+    syscall
+    
+    mov rsi, error_partial_write_msg
+    mov rdx, error_partial_write_len
+    call print_error
+    mov rdi, 4              ; код ошибки для частичной записи
     jmp exit_with_error
 
 ; Обработчик ошибки закрытия файла

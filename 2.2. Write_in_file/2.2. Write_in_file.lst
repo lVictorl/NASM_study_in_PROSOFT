@@ -1,0 +1,157 @@
+     1                                  global _start
+     2                                  
+     3                                  section .data
+     4                                      ; Сохраняемое в файл сообщение
+     5 00000000 48656C6C6F2C20776F-         message db  "Hello, world", 12
+     5 00000009 726C640C           
+     6                                      length  equ $ - message
+     7 0000000D 6F75747075742E7478-         filename db "output.txt", 0
+     7 00000016 7400               
+     8                                      
+     9                                      ; Сообщения об ошибках
+    10 00000018 4572726F723A204661-         error_open_msg db "Error: Failed to open file", 0xA, 0
+    10 00000021 696C656420746F206F-
+    10 0000002A 70656E2066696C650A-
+    10 00000033 00                 
+    11 00000034 4572726F723A204661-         error_write_msg db "Error: Failed to write to file", 0xA, 0
+    11 0000003D 696C656420746F2077-
+    11 00000046 7269746520746F2066-
+    11 0000004F 696C650A00         
+    12 00000054 4572726F723A204661-         error_close_msg db "Error: Failed to close file", 0xA, 0
+    12 0000005D 696C656420746F2063-
+    12 00000066 6C6F73652066696C65-
+    12 0000006F 0A00               
+    13 00000071 4572726F723A205061-         error_partial_write_msg db "Error: Partial write to file", 0xA, 0
+    13 0000007A 727469616C20777269-
+    13 00000083 746520746F2066696C-
+    13 0000008C 650A00             
+    14                                  
+    15                                      ; Длины сообщений
+    16                                      error_open_len equ $ - error_open_msg
+    17                                      error_write_len equ $ - error_write_msg
+    18                                      error_close_len equ $ - error_close_msg
+    19                                      error_partial_write_len equ $ - error_partial_write_msg 
+    20                                  
+    21                                  section .text
+    22                                      ; Функция вывода строки в stderr
+    23                                      ; rsi - указатель на строку, rdx - длина строки
+    24                                      print_error:
+    25 00000000 B801000000                      mov rax, 1              ; sys_write
+    26 00000005 BF02000000                      mov rdi, 2              ; stderr
+    27 0000000A 0F05                            syscall
+    28 0000000C C3                              ret
+    29                                      
+    30                                      ; Функция выхода с кодом ошибки
+    31                                      ; rdi - код ошибки
+    32                                      exit_with_error:
+    33 0000000D B83C000000                      mov rax, 60             ; sys_exit
+    34 00000012 0F05                            syscall
+    35                                      
+    36                                      ; Проверка целостности записи по количеству байт
+    37                                      ; После прерывания 1 (запись) в rax устанавливается,
+    38                                      ; Либо количество записанныйх байт (>0),
+    39                                      ; Либо код ошибки (<0)
+    40                                      check_write_count:
+    41                                          ; Так как rdx не изменялся после записи в него длины сообщения, 
+    42                                          ; его не трогам
+    43 00000014 4839D0                          cmp rax, rdx            ; Сравниваем фактическое и ожидаемое количество
+    44 00000017 C3                              ret                     ; Возвращаемся с установленными флагами
+    45                                  
+    46                                  _start:
+    47                                      ; Открываем файл                syscall   ( rdi, rsi, rdx, r10, r8, r9)
+    48 00000018 B802000000                  mov rax, 2             ; __x64_sys_open  (const char *filename, int flags, umode_t mode)
+    49 0000001D 48BF-                       mov rdi, filename
+    49 0000001F [0D00000000000000] 
+    50 00000027 BE66060000                  mov rsi, 0x666         ; O_CREAT|O_WRONLY|O_TRUNC  ()
+    51 0000002C BAB6010000                  mov rdx, 0o666         ; Права доступа             (rw-rw-rw-)
+    52 00000031 0F05                        syscall
+    53                                  
+    54                                      ; Проверка ошибки открытия
+    55 00000033 4883F800                    cmp rax, 0
+    56 00000037 7C3F                        jl error_open           ; Если rax < 0 - ошибка открытия
+    57                                  
+    58                                      ; Сохраняем дескриптор
+    59 00000039 50                          push rax
+    60                                  
+    61                                      ; Запись в файл
+    62 0000003A 4889C7                      mov rdi, rax           ; Дескриптор
+    63 0000003D B801000000                  mov rax, 1             ; sys_write
+    64 00000042 48BE-                       mov rsi, message
+    64 00000044 [0000000000000000] 
+    65 0000004C BA0D000000                  mov rdx, length
+    66 00000051 0F05                        syscall
+    67                                  
+    68                                      ; Проверка ошибки записи
+    69 00000053 4883F800                    cmp rax, 0
+    70 00000057 7C3D                        jl error_write          ; Если rax < 0 - ошибка записи
+    71                                  
+    72                                      ; Проверка количества записанных байт с помощью подпрограммы
+    73 00000059 E8B6FFFFFF                  call check_write_count   ; Вызываем подпрограмму для сравнения rax и rdx
+    74 0000005E 755F                        jnz error_partial_write  ; Если флаг zero не поднят, значит они не равны
+    75                                      ; и сообщение записано не полность -> Ошибка
+    76                                  
+    77                                      ; Закрываем файл
+    78 00000060 B803000000                  mov rax, 3             ; sys_close
+    79 00000065 5F                          pop rdi                ; Восстанавливаем дескриптор
+    80 00000066 0F05                        syscall
+    81                                  
+    82                                      
+    83                                      ; Проверка ошибки закрытия
+    84 00000068 4883F800                    cmp rax, 0
+    85 0000006C 7C7A                        jl error_close          ; Если rax < 0 - ошибка закрытия
+    86                                  
+    87                                      ; Успешное завершение
+    88 0000006E B83C000000                  mov rax, 60             ; sys_exit
+    89 00000073 4831FF                      xor rdi, rdi            ; код 0
+    90 00000076 0F05                        syscall
+    91                                  
+    92                                  
+    93                                  ; Обработчики ошибок
+    94                                  
+    95                                  ; Обработчик ошибки открытия файла
+    96                                  error_open:
+    97 00000078 48BE-                       mov rsi, error_open_msg
+    97 0000007A [1800000000000000] 
+    98 00000082 BA77000000                  mov rdx, error_open_len
+    99 00000087 E874FFFFFF                  call print_error
+   100 0000008C BF01000000                  mov rdi, 1              ; код ошибки для открытия
+   101 00000091 E977FFFFFF                  jmp exit_with_error
+   102                                  
+   103                                  ; Обработчик ошибки записи в файл
+   104                                  error_write:
+   105                                      ; Нужно закрыть файл перед выходом, т.к. он уже открыт
+   106 00000096 4889C3                      mov rbx, rax            ; сохраняем код ошибки записи
+   107 00000099 B803000000                  mov rax, 3              ; sys_close
+   108 0000009E 5F                          pop rdi                 ; получаем дескриптор из стека
+   109 0000009F 0F05                        syscall
+   110                                      
+   111 000000A1 48BE-                       mov rsi, error_write_msg
+   111 000000A3 [3400000000000000] 
+   112 000000AB BA5B000000                  mov rdx, error_write_len
+   113 000000B0 E84BFFFFFF                  call print_error
+   114 000000B5 BF02000000                  mov rdi, 2              ; код ошибки для записи
+   115 000000BA E94EFFFFFF                  jmp exit_with_error
+   116                                  
+   117                                  ; Обработчик ошибки частичной записи в файл
+   118                                  error_partial_write:
+   119                                      ; Закрываем файл перед выходом, т.к. он уже открыт
+   120 000000BF 4889C3                      mov rbx, rax            ; сохраняем количество фактически записанных байт
+   121 000000C2 B803000000                  mov rax, 3              ; sys_close
+   122 000000C7 5F                          pop rdi                 ; получаем дескриптор из стека
+   123 000000C8 0F05                        syscall
+   124                                      
+   125 000000CA 48BE-                       mov rsi, error_partial_write_msg
+   125 000000CC [7100000000000000] 
+   126 000000D4 BA1E000000                  mov rdx, error_partial_write_len
+   127 000000D9 E822FFFFFF                  call print_error
+   128 000000DE BF04000000                  mov rdi, 4              ; код ошибки для частичной записи
+   129 000000E3 E925FFFFFF                  jmp exit_with_error
+   130                                  
+   131                                  ; Обработчик ошибки закрытия файла
+   132                                  error_close:
+   133 000000E8 48BE-                       mov rsi, error_close_msg
+   133 000000EA [5400000000000000] 
+   134 000000F2 BA3B000000                  mov rdx, error_close_len
+   135 000000F7 E804FFFFFF                  call print_error
+   136 000000FC BF03000000                  mov rdi, 3              ; код ошибки для закрытия
+   137 00000101 E907FFFFFF                  jmp exit_with_error

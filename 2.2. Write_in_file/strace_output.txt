@@ -1,0 +1,6 @@
+execve("./2.2. Write_in_file", ["./2.2. Write_in_file"], 0x7ffc8c374160 /* 60 vars */) = 0
+open("output.txt", O_RDWR|O_CREAT|O_TRUNC|O_APPEND|0x24, 0666) = 3
+write(3, "Hello, world\f", 13)          = 13
+close(3)                                = 0
+exit(0)                                 = ?
++++ exited with 0 +++
