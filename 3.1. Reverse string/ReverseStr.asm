@@ -25,263 +25,273 @@ section .text
 ; ======================== ГЛАВНАЯ ПРОГРАММА ========================
 _start:
     ; ВЫВОД ПРИГЛАШЕНИЯ К ВВОДУ
-    mov eax, 4          ; sys_write
-    mov ebx, 1          ; stdout
-    mov ecx, prompt     ; указатель на сообщение
-    mov edx, prompt_len ; длина сообщения
-    int 0x80
-    test eax, eax       ; проверка успешности записи
+    ; syscall: write(fd, buf, count)
+    mov rax, 1          ; sys_write
+    mov rdi, 1          ; stdout
+    mov rsi, prompt
+    mov rdx, prompt_len
+    syscall
+    test rax, rax       ; проверка успешности записи
     js write_error      ; если ошибка
     
     ; ЧТЕНИЕ СТРОКИ С КЛАВИАТУРЫ
-    mov eax, 3          ; sys_read
-    mov ebx, 0          ; stdin
-    mov ecx, input      ; буфер для ввода
-    mov edx, 101        ; максимальная длина (100 символов + \n)
-    int 0x80
-    test eax, eax       ; проверка успешности чтения
+    ; syscall: read(fd, buf, count)
+    mov rax, 0          ; sys_read
+    mov rdi, 0          ; stdin
+    mov rsi, input
+    mov rdx, 101        ; максимальная длина (100 символов + \n)
+    syscall
+    test rax, rax       ; проверка успешности чтения
     js read_error       ; если ошибка чтения
     jz empty_error      ; если ничего не прочитано
     
     ; Сохраняем длину введенной строки
-    mov esi, eax        ; ESI = длина строки
+    mov r12, rax        ; R12 = длина строки (сохраняем, т.к. rax будет изменяться)
     
     ; ПРОВЕРКА ДЛИНЫ СТРОКИ
-    cmp esi, 101        ; сравнение с максимальной длиной
+    cmp r12, 101        ; сравнение с максимальной длиной
     jge too_long_error  ; если строка слишком длинная
     
     ; ПРОВЕРКА НА ПУСТУЮ СТРОКУ (только \n)
-    cmp esi, 1
+    cmp r12, 1
     jne .not_empty
     cmp byte [input], 10 ; проверка на символ новой строки
     je empty_error
 .not_empty:
     
     ; УДАЛЕНИЕ СИМВОЛА НОВОЙ СТРОКИ
-    mov edi, input      ; EDI = указатель на строку
+    mov rdi, input      ; RDI = указатель на строку
     call remove_newline ; вызов функции удаления новой строки
     
     ; ПРОВЕРКА НА ПУСТУЮ СТРОКУ ПОСЛЕ УДАЛЕНИЯ \n
+    mov rdi, input      ; Убедимся, что RDI содержит input
     call check_empty_string
-    test eax, eax
+    test rax, rax
     jnz empty_error
     
     ; РАЗВОРОТ СТРОКИ
-    mov edi, input      ; EDI = исходная строка
-    mov esi, reversed   ; ESI = буфер для результата
+    mov rdi, input      ; RDI = исходная строка
+    mov rsi, reversed   ; RSI = буфер для результата
     call reverse_string ; вызов функции разворота
+    ; Теперь в RAX указатель на начало развернутой строки
     
-    ; ВЫВОД РЕЗУЛЬТАТА
-    mov eax, 4          ; sys_write
-    mov ebx, 1          ; stdout
-    mov ecx, result     ; сообщение "Reversed: "
-    mov edx, result_len
-    int 0x80
-    test eax, eax       ; проверка успешности записи
+    ; Сохраняем указатель на развернутую строку
+    mov r13, rax        ; R13 = указатель на развернутую строку
+    
+    ; ВЫВОД СООБЩЕНИЯ "Reversed: "
+    mov rax, 1          ; sys_write
+    mov rdi, 1          ; stdout
+    mov rsi, result
+    mov rdx, result_len
+    syscall
+    test rax, rax       ; проверка успешности записи
     js write_error      ; если ошибка
     
-    mov eax, 4          ; sys_write для вывода развернутой строки
-    mov ebx, 1
-    mov ecx, reversed
-    call get_string_length ; получаем длину развернутой строки
-    mov edx, eax        ; EDX = длина строки
-    int 0x80
-    test eax, eax       ; проверка успешности записи
+    ; ВЫВОД РАЗВЕРНУТОЙ СТРОКИ
+    ; Сначала вычислим длину развернутой строки
+    mov rdi, r13        ; RDI = указатель на развернутую строку
+    call get_string_length ; RAX = длина строки
+    mov rdx, rax        ; RDX = длина для write
+    
+    ; Теперь выводим
+    mov rax, 1          ; sys_write
+    mov rdi, 1          ; stdout
+    mov rsi, r13        ; RSI = указатель на развернутую строку
+    syscall
+    test rax, rax       ; проверка успешности записи
     js write_error      ; если ошибка
     
     ; ВЫВОД СИМВОЛА НОВОЙ СТРОКИ
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, newline
-    mov edx, 1
-    int 0x80
-    test eax, eax       ; проверка успешности записи
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, newline
+    mov rdx, 1
+    syscall
+    test rax, rax       ; проверка успешности записи
     js write_error      ; если ошибка
     
     ; УСПЕШНОЕ ЗАВЕРШЕНИЕ ПРОГРАММЫ
-    mov eax, 1          ; sys_exit
-    mov ebx, 0          ; код возврата 0
-    int 0x80
+    ; syscall: exit(status)
+    mov rax, 60         ; sys_exit
+    mov rdi, 0          ; код возврата 0
+    syscall
 
 ; ======================== ОБРАБОТЧИКИ ОШИБОК ========================
 read_error:
     ; ОШИБКА ЧТЕНИЯ
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, error_read
-    mov edx, error_read_len
-    int 0x80
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, error_read
+    mov rdx, error_read_len
+    syscall
     jmp error_exit
 
 write_error:
     ; ОШИБКА ЗАПИСИ
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, error_write
-    mov edx, error_write_len
-    int 0x80
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, error_write
+    mov rdx, error_write_len
+    syscall
     jmp error_exit
 
 empty_error:
     ; ОШИБКА: ПУСТАЯ СТРОКА
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, error_empty
-    mov edx, error_empty_len
-    int 0x80
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, error_empty
+    mov rdx, error_empty_len
+    syscall
     jmp error_exit
 
 too_long_error:
     ; ОШИБКА: СЛИШКОМ ДЛИННАЯ СТРОКА
-    mov eax, 4
-    mov ebx, 1
-    mov ecx, error_too_long
-    mov edx, error_too_long_len
-    int 0x80
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, error_too_long
+    mov rdx, error_too_long_len
+    syscall
 
 error_exit:
     ; ЗАВЕРШЕНИЕ ПРОГРАММЫ С ОШИБКОЙ
-    mov eax, 1          ; sys_exit
-    mov ebx, 1          ; код возврата 1 (ошибка)
-    int 0x80
+    mov rax, 60         ; sys_exit
+    mov rdi, 1          ; код возврата 1 (ошибка)
+    syscall
 
 ; ======================== ФУНКЦИИ ========================
 
 ; ФУНКЦИЯ: remove_newline
 ; Назначение: Удаляет символ новой строки из конца строки
-; Вход: EDI - указатель на строку
-; Выход: Строка без символа новой строки
+; Вход: RDI - указатель на строку
+; Выход: Строка без символа новой строки (нуль-терминированная)
 remove_newline:
-    push ebp
-    mov ebp, esp
-    push eax
-    push edi
+    push rbp
+    mov rbp, rsp
     
-.search_loop:
-    mov al, [edi]       ; Загружаем текущий символ
-    cmp al, 0           ; Конец строки?
-    je .done
-    cmp al, 10          ; Символ новой строки?
+.search_newline:
+    cmp byte [rdi], 0   ; Конец строки?
+    je .nl_done
+    cmp byte [rdi], 10  ; Символ новой строки?
     je .found_newline
-    inc edi
-    jmp .search_loop
+    inc rdi
+    jmp .search_newline
 
 .found_newline:
-    mov byte [edi], 0   ; Заменяем символ новой строки на нуль-терминатор
+    mov byte [rdi], 0   ; Заменяем символ новой строки на нуль-терминатор
 
-.done:
-    pop edi
-    pop eax
-    pop ebp
+.nl_done:
+    pop rbp
     ret
 
 ; ФУНКЦИЯ: reverse_string
 ; Назначение: Разворачивает строку задом наперед
-; Вход: EDI - исходная строка, ESI - буфер для результата
-; Выход: ESI содержит развернутую строку
+; Вход: RDI - указатель на исходную строку (нуль-терминированная)
+;       RSI - указатель на буфер для результата (должен быть достаточно большим)
+; Выход: RAX - указатель на начало развернутой строки (тот же что и RSI на входе)
 reverse_string:
-    push ebp
-    mov ebp, esp
-    push eax
-    push ebx
-    push ecx
-    push edx
-    push edi
-    push esi
+    push rbp
+    mov rbp, rsp
+    push rbx
+    push rcx
+    push rdx
     
-    ; НАХОЖДЕНИЕ ДЛИНЫ СТРОКИ
-    mov ebx, edi        ; Сохраняем начало строки
-    mov ecx, 0          ; Счетчик длины
+    ; Сохраняем начало буфера для результата
+    mov rax, rsi        ; RAX будет хранить начало результата
     
-.length_loop:
-    cmp byte [edi], 0   ; Конец строки?
-    je .length_done
-    inc ecx             ; Увеличиваем счетчик
-    inc edi             ; Переходим к следующему символу
-    jmp .length_loop
+    ; Находим длину исходной строки
+    mov rbx, rdi        ; RBX = текущая позиция в исходной строке
+    mov rcx, 0          ; RCX = длина строки
+    
+.find_length:
+    cmp byte [rbx], 0
+    je .length_found
+    inc rcx
+    inc rbx
+    jmp .find_length
 
-.length_done:
-    ; ПРОВЕРКА НА ПУСТУЮ СТРОКУ
-    test ecx, ecx
-    jz .reverse_done
+.length_found:
+    ; Проверка на пустую строку
+    test rcx, rcx
+    jz .empty_string
     
-    ; РАЗВОРОТ СТРОКИ
-    mov edi, ebx        ; Восстанавливаем начало строки
-    add edi, ecx        ; Переходим к концу строки
-    dec edi             ; Последний символ (перед нуль-терминатором)
+    ; Устанавливаем указатель на конец исходной строки
+    mov rbx, rdi
+    add rbx, rcx
+    dec rbx             ; RBX указывает на последний символ
     
+    ; Разворачиваем строку
 .reverse_loop:
-    cmp ecx, 0          ; Все символы обработаны?
-    je .reverse_done
-    mov al, [edi]       ; Берем символ с конца
-    mov [esi], al       ; Записываем в начало результата
-    dec edi             ; Двигаемся назад по исходной строке
-    inc esi             ; Двигаемся вперед по результату
-    dec ecx             ; Уменьшаем счетчик
+    test rcx, rcx
+    jz .reverse_done
+    mov dl, byte [rbx]  ; Берем символ с конца
+    mov byte [rsi], dl  ; Записываем в начало результата
+    dec rbx
+    inc rsi
+    dec rcx
     jmp .reverse_loop
 
+.empty_string:
+    mov byte [rsi], 0
+    jmp .reverse_done
+
 .reverse_done:
-    mov byte [esi], 0   ; Добавляем нуль-терминатор
+    mov byte [rsi], 0   ; Добавляем нуль-терминатор
     
-    pop esi
-    pop edi
-    pop edx
-    pop ecx
-    pop ebx
-    pop eax
-    pop ebp
+    ; RAX уже содержит начало результата
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rbp
     ret
 
 ; ФУНКЦИЯ: check_empty_string
-; Назначение: Проверяет, является ли строка пустой
-; Вход: EDI - указатель на строку
-; Выход: EAX = 1 если пустая, 0 если нет
+; Назначение: Проверяет, является ли строка пустой (содержит только whitespace символы)
+; Вход: RDI - указатель на строку
+; Выход: RAX = 1 если пустая, 0 если нет
 check_empty_string:
-    push ebp
-    mov ebp, esp
-    push edi
+    push rbp
+    mov rbp, rsp
     
-    mov eax, 0          ; по умолчанию не пустая
+    mov rax, 0          ; по умолчанию не пустая
 .check_loop:
-    mov cl, [edi]
-    test cl, cl         ; конец строки?
+    mov dl, byte [rdi]
+    test dl, dl         ; конец строки?
     jz .is_empty
-    cmp cl, 32          ; пробел?
+    cmp dl, 32          ; пробел?
     je .next_char
-    cmp cl, 9           ; табуляция?
+    cmp dl, 9           ; табуляция?
     je .next_char
     jmp .not_empty      ; нашли не-whitespace символ
     
 .next_char:
-    inc edi
+    inc rdi
     jmp .check_loop
 
 .is_empty:
-    mov eax, 1          ; строка пустая
+    mov rax, 1          ; строка пустая
 
 .not_empty:
-    pop edi
-    pop ebp
+    pop rbp
     ret
 
 ; ФУНКЦИЯ: get_string_length
-; Назначение: Вычисляет длину строки
-; Вход: ECX - указатель на строку
-; Выход: EAX - длина строки
+; Назначение: Вычисляет длину нуль-терминированной строки
+; Вход: RDI - указатель на строку
+; Выход: RAX - длина строки (без учета нуль-терминатора)
 get_string_length:
-    push ebp
-    mov ebp, esp
-    push ecx
+    push rbp
+    mov rbp, rsp
+    push rdi            ; Сохраняем оригинальный указатель
     
-    mov eax, 0
-.count_loop:
-    cmp byte [ecx], 0
-    je .done
-    inc eax
-    inc ecx
-    jmp .count_loop
+    mov rax, 0
+.count_chars:
+    cmp byte [rdi], 0
+    je .count_complete
+    inc rax
+    inc rdi
+    jmp .count_chars
     
-.done:
-    pop ecx
-    pop ebp
+.count_complete:
+    pop rdi             ; Восстанавливаем оригинальный указатель
+    pop rbp
     ret

@@ -1,0 +1,10 @@
+execve("./ReverseStr", ["./ReverseStr"], 0x7ffca961f000 /* 61 vars */) = 0
+write(1, "Enter your string: \0", 20)   = 20
+read(0, !DOG !001 now I    
+"!DOG !001 now I\n", 101)       = 16
+write(1, "Reversed: \0", 11)            = 11
+write(1, "I won 100! GOD!", 15)         = 15
+write(1, "\n", 1)                       = 1
+exit(0)                                 = ?
++++ exited with 0 +++
+
