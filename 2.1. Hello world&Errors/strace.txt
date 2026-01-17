@@ -1,0 +1,5 @@
+execve("./2.1. Hello world&Errors", ["./2.1. Hello world&Errors"], 0x7ffd098b5e90 /* 61 vars */) = 0
+write(1, "Hello world!\n", 13)          = 13
+exit(0)                                 = ?
++++ exited with 0 +++
+

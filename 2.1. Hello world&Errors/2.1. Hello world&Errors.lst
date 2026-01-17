@@ -1,0 +1,75 @@
+     1                                  global _start                      ; делаем метку метку _start видимой извне
+     2                                   
+     3                                  section .data                      ; секция данных
+     4 00000000 48656C6C6F20776F72-         message db  "Hello world!",10  ; строка для вывода на консоль
+     4 00000009 6C64210A           
+     5                                      length  equ $ - message
+     6 0000000D 4572726F7220696E20-         text_error_init db "Error in init", 10
+     6 00000016 696E69740A         
+     7                                      length_error_init  equ $ - text_error_init
+     8 0000001B 4572726F7220696E20-         text_error_print db "Error in time print", 10
+     8 00000024 74696D65207072696E-
+     8 0000002D 740A               
+     9                                      length_error_print equ $ - text_error_print 
+    10                                  
+    11 0000002F 4572726F7220777269-         text_error_write db "Error write", 10
+    11 00000038 74650A             
+    12                                      length_error_write equ $ - text_error_write
+    13                                  
+    14                                  
+    15                                   
+    16                                  section .text                      ; объявление секции кода
+    17                                  _start:                            ; точка входа в программу
+    18 00000000 B801000000                  mov rax, 1                     ; 1 - номер системного вызова функции write
+    19 00000005 BF01000000                  mov rdi, 1                     ; 1 - дескриптор файла стандартного вызова stdout
+    20 0000000A 48BE-                       mov rsi, message               ; адрес строки для вывод
+    20 0000000C [0000000000000000] 
+    21 00000014 BA0D000000                  mov rdx, length                ; количество байтов
+    22 00000019 4883FA0D                    cmp rdx, 13
+    23 0000001D 0F05                        syscall                        ; выполняем системный вызов write
+    24                                      ; После записи в rax записывается результат операции
+    25                                  
+    26                                      ; Соответсвенно, следующие проверки:
+    27 0000001F 4883F800                    cmp rax,0
+    28 00000023 7C30                        jl .error_printing ; Если отрицательное число -> Ошибка записи
+    29                                  
+    30 00000025 4883F80D                    cmp rax, length
+    31 00000029 7548                        jne .error_write ; Записалось не всё
+    32                                  
+    33 0000002B B83C000000                  mov rax, 60                    ; 60 - номер системного вызова exit
+    34 00000030 BF00000000                  mov rdi, 0
+    35 00000035 0F05                        syscall                        ; выполняем системный вызов exit
+    36                                      
+    37                                  
+    38                                  .error_init:
+    39 00000037 9C                          pushf
+    40 00000038 B801000000                  mov rax, 1                     ; 1 - номер системного вызова функции write
+    41 0000003D BF01000000                  mov rdi, 1                     ; 1 - дескриптор файла стандартного вызова stdout
+    42 00000042 48BE-                       mov rsi, text_error_init
+    42 00000044 [0D00000000000000] 
+    43 0000004C BA0E000000                  mov rdx, length_error_init
+    44 00000051 0F05                        syscall
+    45 00000053 9D                          popf
+    46 00000054 C3                          ret
+    47                                  
+    48                                  .error_printing:
+    49 00000055 9C                          pushf
+    50 00000056 B801000000                  mov rax, 1                     ; 1 - номер системного вызова функции write
+    51 0000005B BF01000000                  mov rdi, 1                     ; 1 - дескриптор файла стандартного вызова stdout
+    52 00000060 48BE-                       mov rsi, text_error_print
+    52 00000062 [1B00000000000000] 
+    53 0000006A BA14000000                  mov rdx, length_error_print
+    54 0000006F 0F05                        syscall  
+    55 00000071 9D                          popf
+    56 00000072 C3                          ret
+    57                                  
+    58                                  .error_write:
+    59 00000073 9C                          pushf
+    60 00000074 B801000000                  mov rax, 1                     ; 1 - номер системного вызова функции write
+    61 00000079 BF01000000                  mov rdi, 1                     ; 1 - дескриптор файла стандартного вызова stdout
+    62 0000007E 48BE-                       mov rsi, text_error_write
+    62 00000080 [2F00000000000000] 
+    63 00000088 BA0C000000                  mov rdx, length_error_write
+    64 0000008D 0F05                        syscall  
+    65 0000008F 9D                          popf
+    66 00000090 C3                          ret
